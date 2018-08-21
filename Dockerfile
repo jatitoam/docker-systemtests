@@ -9,13 +9,31 @@ ENV HOME /root
 RUN apt-get update -qq
 
 # we use the enviroment variable to stop debconf from asking questions..
-RUN DEBIAN_FRONTEND='noninteractive' apt-get install -y mysql-server apache2 mysql-client php7.0 \
-    php7.0-cli php7.0-curl php7.0-gd php7.0-mysql php7.0-zip php7.0-xml php7.0-mbstring libapache2-mod-php7.0 curl \
-	wget firefox unzip git fluxbox libxss1 libappindicator1 libindicator7 openjdk-8-jre xvfb gconf-service fonts-liberation \
-	dbus xdg-utils libasound2 libqt4-dbus libqt4-network libqtcore4 libqtgui4 libpython2.7 libqt4-xml libaudio2 fontconfig nodejs npm
+RUN DEBIAN_FRONTEND='noninteractive' apt-get install -y mysql-server apache2 \
+	mysql-client php7.0 php7.0-cli php7.0-curl php7.0-gd php7.0-mysql php7.0-zip \
+	php7.0-xml php7.0-mbstring libapache2-mod-php7.0 curl wget firefox unzip git \
+	fluxbox libxss1 libappindicator1 libindicator7 openjdk-8-jre xvfb \
+	gconf-service fonts-liberation dbus xdg-utils libasound2 libqt4-dbus \
+	libqt4-network libqtcore4 libqtgui4 libpython2.7 libqt4-xml libaudio2 \
+	fontconfig nodejs npm
+
+# Fetch Google Chrome
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+RUN dpkg -i google-chrome*.deb
+
+RUN mkdir -p /var/run/mysqld && chown -R mysql:mysql /var/run/mysqld
+RUN DEBIAN_FRONTEND='noninteractive' apt-get install -y python-pip
 
 # package install is finished, clean up
-RUN apt-get clean # && rm -rf /var/lib/apt/lists/*
+RUN apt-get clean
+RUN rm -rf -- /var/lib/apt/lists/*
+
+# Setup supervisor
+RUN pip2 install supervisor
+RUN pip2 install supervisor_stdout
+RUN mkdir -p /etc/supervisor.d
+ADD config/supervisord.conf /etc/supervisord.conf
+ADD config/supervisor.d/* /etc/supervisor.d/
 
 # Create testing directory
 RUN mkdir -p /tests/www
@@ -31,8 +49,5 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=bin --file
 RUN composer self-update
 RUN git config --global http.postBuffer 524288000
 
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-RUN dpkg -i google-chrome*.deb
-
 # Start Apache and MySQL
-CMD /usr/bin/mysqld_safe & apache2ctl -D FOREGROUND
+CMD supervisord -n -c /etc/supervisord.conf
